@@ -1,0 +1,3 @@
+# Ignore datasets and pickle files 
+*.csv 
+*.pkl 
