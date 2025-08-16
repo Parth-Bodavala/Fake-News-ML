@@ -1,3 +1,2 @@
-# Ignore datasets and pickle files 
-*.csv 
+# Ignore pickle model files 
 *.pkl 
