@@ -1,53 +1,61 @@
 import streamlit as st
-import pandas as pd
 import string
 import pickle
-from nltk.corpus import stopwords
-from nltk.stem import WordNetLemmatizer
+import numpy as np
 import nltk
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
 
-#stopwords and lemmatizer
-nltk.download('stopwords')
-nltk.download('wordnet')
-nltk.download('omw-1.4')
-stop_words = set(stopwords.words('english'))
+def ensure_nltk_resource(name, download_name=None):
+    import nltk.data
+    try:
+        nltk.data.find(name)
+    except:
+        nltk.download(download_name or name.split('/')[-1])
+
+ensure_nltk_resource('corpora/stopwords', 'stopwords')
+ensure_nltk_resource('corpora/wordnet', 'wordnet')
+ensure_nltk_resource('corpora/omw-1.4', 'omw-1.4')
+
 lemmatizer = WordNetLemmatizer()
 
-# Load model and vectorizer
-import pickle
-
-with open("model.pkl", "rb") as f:
-    model = pickle.load(f)
-
-with open("vectorizer.pkl", "rb") as f:
-    vectorizer = pickle.load(f)
-
-# Text cleaning function
 def clean_text(text):
-    text = text.lower()
-    text = ''.join([c for c in text if c not in string.punctuation and not c.isdigit()])
-    text = ' '.join([lemmatizer.lemmatize(word) for word in text.split() if word not in stop_words])
-    return text.strip()
+    text = str(text).lower()
+    text = ''.join(c for c in text if c not in string.punctuation)
+    words = text.split()
+    words = [lemmatizer.lemmatize(w) for w in words]
+    return " ".join(words).strip()
 
-# Streamlit UI
+@st.cache_resource
+def load_artifacts(model_path="model.pkl", vectorizer_path="vectorizer.pkl"):
+    with open(model_path, "rb") as f:
+        model = pickle.load(f)
+    with open(vectorizer_path, "rb") as f:
+        vectorizer = pickle.load(f)
+    return model, vectorizer
+
+model, vectorizer = load_artifacts()
+
 st.set_page_config(page_title="Fake News Detection", layout="centered")
 st.title("📰 Fake News Detection Web App")
 
 st.markdown("Enter the news content below and click **Check** to detect if it's real or fake.")
 
-# Input text area
-input_text = st.text_area("📝 News Text", height=200)
+input_text = st.text_area("📝 News Text", height=220)
 
 if st.button("Check"):
     if input_text.strip() == "":
         st.warning("⚠️ Please enter some news content.")
     else:
-        # Preprocess and predict
         cleaned = clean_text(input_text)
         vectorized = vectorizer.transform([cleaned])
-        prediction = model.predict(vectorized)[0]
 
-        if prediction.upper() == "FAKE":
-            st.error(f"❌ This news is likely **FAKE**.")
+        if vectorized.nnz == 0:
+            st.warning("⚠️ Not enough meaningful words to analyze this news.")
         else:
-            st.success(f"✅ This news is likely **REAL**.")
+            prediction = model.predict(vectorized)[0].strip().lower()
+
+            if prediction == "fake":
+                st.error("❌ This news is likely **FAKE**.")
+            else:
+                st.success("✅ This news is likely **REAL**.")
